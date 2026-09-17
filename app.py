@@ -133,6 +133,7 @@ def create_app(database_uri="sqlite:///sprintsync.db"):
         db.create_all()
 
     return app
+app = create_app()
 
 if __name__ == '__main__':
     application = create_app()
