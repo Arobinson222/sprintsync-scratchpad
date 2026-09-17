@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SprintSync Scratchpad - Instant Collaboration</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="app-container app-landing">
+        <header>
+            <div class="logo-mark">⚡ SprintSync</div>
+            <h1>Instant, Zero-Login Engineering Canvas</h1>
+            <p class="hero-subtext">Spin up an ephemeral Markdown collaborative board instantly. Shared links self-delete automatically after 48 hours.</p>
+        </header>
+        
+        <main class="creation-hub">
+            <div class="card-generator-box">
+                <label for="boardTitle">Workspace Focus</label>
+                <input type="text" id="boardTitle" placeholder="e.g., Q3 System Architecture Retro" value="Sprint Architecture Retro">
+                
+                <label for="boardLanes">Columns (Comma-Separated)</label>
+                <input type="text" id="boardLanes" placeholder="Pros, Cons, Actions" value="What Went Well, Bottlenecks, Actions">
+                
+                <button id="launchBtn" onclick="triggerBoardGeneration()">Generate Instant Board &rArr;</button>
+            </div>
+        </main>
+    </div>
+    <script>
+        async function triggerBoardGeneration() {
+            const title = document.getElementById('boardTitle').value;
+            const columnInput = document.getElementById('boardLanes').value;
+            const columns = columnInput.split(',').map(c => c.trim()).filter(c => c.length > 0);
+            
+            const baseResponse = await fetch('/api/boards', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, columns })
+            });
+            const schemaData = await baseResponse.json();
+            if(schemaData.board_id) {
+                window.location.href = `/board/${schemaData.board_id}`;
+            }
+        }
+    </script>
+</body>
+</html>

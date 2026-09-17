@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SprintSync Engine</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <nav class="top-nav">
+            <a href="/" class="logo-mark">⚡ SprintSync</a>
+            <h2 id="activeTitle">Sync Workspace Loading...</h2>
+            <div class="utility-actions">
+                <button class="btn-utility" onclick="copyShareLink()">📋 Copy Board Link</button>
+                <button class="btn-utility export" onclick="extractToMarkdown()">💾 Download MD</button>
+            </div>
+        </nav>
+        
+        <main class="kanban-deck" id="boardDeck"></main>
+    </div>
+
+    <script>
+        const ACTIVE_BOARD_ID = window.location.pathname.split('/').pop();
+        let boardStateString = "";
+
+        async function fetchSystemState() {
+            try {
+                const stream = await fetch(`/api/boards/${ACTIVE_BOARD_ID}`);
+                if (!stream.ok) { window.location.href = "/"; return; }
+                const dataset = await stream.json();
+                
+                document.getElementById('activeTitle').innerText = dataset.title;
+                const presentationDeck = document.getElementById('boardDeck');
+                presentationDeck.innerHTML = "";
+                
+                boardStateString = `# ${dataset.title}\n\n`;
+
+                dataset.columns.forEach(lane => {
+                    boardStateString += `## ${lane.title}\n`;
+                    const laneElement = document.createElement('div');
+                    laneElement.className = 'kanban-lane';
+                    laneElement.innerHTML = `
+                        <div class="lane-header"><h3>${lane.title}</h3></div>
+                        <div class="lane-cards" id="lane-cards-${lane.id}"></div>
+                        <div class="lane-input-box">
+                            <textarea id="input-lane-${lane.id}" placeholder="Type anonymous note..."></textarea>
+                            <button onclick="commitNewCard(${lane.id})">Add Card</button>
+                        </div>
+                    `;
+                    presentationDeck.appendChild(laneElement);
+                    
+                    const dynamicCardTray = document.getElementById(`lane-cards-${lane.id}`);
+                    lane.cards.forEach(entry => {
+                        boardStateString += `- [${entry.votes} votes] ${entry.content}\n`;
+                        const unitCard = document.createElement('div');
+                        unitCard.className = 'canvas-card';
+                        unitCard.innerHTML = `
+                            <p class="card-text">${escapeMarkup(entry.content)}</p>
+                            <div class="card-footer">
+                                <button class="vote-pill" onclick="castVote(${entry.id})">▲ <span class="vote-count">${entry.votes}</span></button>
+                            </div>
+                        `;
+                        dynamicCardTray.appendChild(unitCard);
+                    });
+                    boardStateString += "\n";
+                });
+            } catch (err) { console.error("Synchronization loop failed pipeline drop", err); }
+        }
+
+        async function commitNewCard(laneId) {
+            const textBox = document.getElementById(`input-lane-${laneId}`);
+            const content = textBox.value.trim();
+            if(!content) return;
+            
+            await fetch('/api/cards', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ column_id: laneId, content })
+            });
+            textBox.value = "";
+            fetchSystemState();
+        }
+
+        async function castVote(cardId) {
+            await fetch(`/api/cards/${cardId}/vote`, { method: 'POST' });
+            fetchSystemState();
+        }
+
+        function extractToMarkdown() {
+            const dataBlob = new Blob([boardStateString], { type: 'text/markdown' });
+            const temporaryAnchor = document.createElement('a');
+            temporaryAnchor.href = URL.createObjectURL(dataBlob);
+            temporaryAnchor.download = `SprintSync-${ACTIVE_BOARD_ID.substring(0,8)}.md`;
+            temporaryAnchor.click();
+        }
+
+        function copyShareLink() {
+            navigator.clipboard.writeText(window.location.href);
+            alert("Board share link copied to clipboard!");
+        }
+
+        function escapeMarkup(input) {
+            return input.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        fetchSystemState();
+        setInterval(fetchSystemState, 4000); // Polling loop preserves asynchronous continuity
+    </script>
+</body>
+</html>
